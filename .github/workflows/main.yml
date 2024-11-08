@@ -1,44 +1,33 @@
-name: Keep Codespaces Running
+name: Run sharp Workflow
 
 on:
+  push:
+    branches:
+      - main
   schedule:
-    - cron: '* * * * *'  # Runs every minute
-  workflow_dispatch:  # Allows manual triggering
+    - cron: '*/30 * * * *'
 
 jobs:
-  maintain_codespaces:
+  run_sharp_workflow:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install GitHub CLI and jq
+      - name: Check out the code
+        uses: actions/checkout@v2
+
+      - name: Set permissions for binaries
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gh jq
+          chmod +x sharp
+          chmod +x sharp2
+          
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.x'
 
-      - name: Authenticate GitHub CLI with Personal Classic Token
-        env:
-          PERSONAL_CLASSIC_TOKEN: ${{ secrets.PERSONAL_CLASSIC_TOKEN }}  # Reference your secret
-        run: echo "$PERSONAL_CLASSIC_TOKEN" | gh auth login --with-token
-
-      - name: Check and Restart All Codespaces
+      - name: Install required packages
         run: |
-          # Get the list of all Codespaces and their states
-          CODESPACES=$(gh codespace list --json name,state | jq -c '.[]')
+          pip install telebot flask aiogram python-telegram-bot pymongo aiohttp
 
-          # Iterate through each Codespace
-          echo "$CODESPACES" | while IFS= read -r codespace; do
-            NAME=$(echo "$codespace" | jq -r '.name')
-            STATUS=$(echo "$codespace" | jq -r '.state')
-
-            echo "Codespace: $NAME, Status: $STATUS"
-
-            if [ "$STATUS" == "Shutdown" ]; then
-              echo "Codespace $NAME is offline. Starting it..."
-              gh codespace ssh -c "$NAME" --exit-on-disconnect &
-            else
-              echo "Codespace $NAME is already running."
-            fi
-          done
-
-          # Wait for all background processes to complete
-          wait
+      - name: Run sharp.py
+        run: python3 sharp.py
